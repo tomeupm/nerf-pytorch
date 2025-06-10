@@ -1,0 +1,73 @@
+experiment:
+  id: wheel_robot1
+  logdir: logs
+  randomseed: 42
+  train_iters: 200000
+  validate_every: 100
+  save_every: 5000
+  print_every: 100
+
+dataset:
+  type: blender
+  basedir: cache/wheel_robot
+  testskip: 1
+  half_res: False
+  no_ndc: True
+  near: 0.01
+  far: 1.0
+
+models:
+  coarse:
+    type: FlexibleNeRFModel
+    num_layers: 8
+    hidden_size: 128
+    skip_connect_every: 3
+    include_input_xyz: True
+    log_sampling_xyz: True
+    num_encoding_fn_xyz: 10
+    use_viewdirs: True
+    include_input_dir: True
+    num_encoding_fn_dir: 4
+    log_sampling_dir: True
+  fine:
+    type: FlexibleNeRFModel
+    num_layers: 8
+    hidden_size: 128
+    skip_connect_every: 3
+    include_input_xyz: True
+    log_sampling_xyz: True
+    num_encoding_fn_xyz: 10
+    use_viewdirs: True
+    include_input_dir: True
+    num_encoding_fn_dir: 4
+    log_sampling_dir: True
+
+optimizer:
+  type: Adam
+  lr: 5.0E-3
+
+scheduler:
+  lr_decay: 250
+  lr_decay_factor: 0.1
+
+nerf:
+  use_viewdirs: True
+  encode_position_fn: positional_encoding
+  encode_direction_fn: positional_encoding
+  train:
+    num_random_rays: 2048
+    chunksize: 65536
+    perturb: True
+    num_coarse: 64
+    num_fine: 128
+    white_background: False
+    radiance_field_noise_std: 0.2
+    lindisp: False
+  validation:
+    chunksize: 65536
+    perturb: False
+    num_coarse: 64
+    num_fine: 128
+    white_background: False
+    radiance_field_noise_std: 0.0
+    lindisp: False

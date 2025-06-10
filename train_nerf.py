@@ -64,6 +64,8 @@ def main():
             hwf = [H, W, focal]
             if cfg.nerf.train.white_background:
                 images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
+            images = torch.from_numpy(images) if not isinstance(images, torch.Tensor) else images
+            poses = torch.from_numpy(poses) if not isinstance(poses, torch.Tensor) else poses
         elif cfg.dataset.type.lower() == "llff":
             images, poses, bds, render_poses, i_test = load_llff_data(
                 cfg.dataset.basedir, factor=cfg.dataset.downsample_factor
