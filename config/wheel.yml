@@ -8,7 +8,7 @@ experiment:
   print_every: 2500
 
 dataset:
-  type: robot
+  type: blender
   basedir: cache/wheel_robot
   testskip: 1
   half_res: False
