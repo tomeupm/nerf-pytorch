@@ -13,6 +13,8 @@ from tqdm import tqdm, trange
 from nerf import (CfgNode, get_embedding_function, get_ray_bundle, img2mse,
                   load_blender_data, load_llff_data, meshgrid_xy, models,
                   mse2psnr, run_one_iter_of_nerf)
+from nerf.load_robot import load_robot_data
+from utils import get_device
 
 
 def main():
@@ -66,6 +68,16 @@ def main():
                 images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
             images = torch.from_numpy(images) if not isinstance(images, torch.Tensor) else images
             poses = torch.from_numpy(poses) if not isinstance(poses, torch.Tensor) else poses
+        elif cfg.dataset.type.lower() == "robot":
+            images, poses, render_poses, hwf, i_split = load_robot_data(
+                cfg.dataset.basedir,
+                half_res=cfg.dataset.half_res
+            )
+            
+            H, W, focal = hwf
+            H, W = int(H), int(W)
+            hwf = [H, W, focal]
+            
         elif cfg.dataset.type.lower() == "llff":
             images, poses, bds, render_poses, i_test = load_llff_data(
                 cfg.dataset.basedir, factor=cfg.dataset.downsample_factor
@@ -96,10 +108,7 @@ def main():
     torch.manual_seed(seed)
 
     # Device on which to run.
-    if torch.cuda.is_available():
-        device = "cuda"
-    else:
-        device = "cpu"
+    device = get_device()
 
     encode_position_fn = get_embedding_function(
         num_encoding_functions=cfg.models.coarse.num_encoding_fn_xyz,

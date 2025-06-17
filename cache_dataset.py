@@ -11,6 +11,7 @@ import torch
 from tqdm import tqdm
 
 from nerf import get_ray_bundle, load_blender_data, load_llff_data, meshgrid_xy
+from utils import get_device
 
 
 def cache_nerf_dataset(args):
@@ -56,10 +57,7 @@ def cache_nerf_dataset(args):
         poses = torch.from_numpy(poses)
 
     # Device on which to run.
-    if torch.cuda.is_available():
-        device = "cuda"
-    else:
-        device = "cpu"
+    device = get_device()
 
     os.makedirs(os.path.join(args.savedir, "train"), exist_ok=True)
     os.makedirs(os.path.join(args.savedir, "val"), exist_ok=True)

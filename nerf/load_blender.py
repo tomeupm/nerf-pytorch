@@ -58,6 +58,7 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
 
         for frame in meta["frames"][::skip]:
             fname = os.path.join(basedir, frame["file_path"] + ".png")
+            # fname = os.path.join(basedir, frame["file_path"] + ".jpg")
             imgs.append(imageio.imread(fname))
             poses.append(np.array(frame["transform_matrix"]))
         imgs = (np.array(imgs) / 255.0).astype(np.float32)

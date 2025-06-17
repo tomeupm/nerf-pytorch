@@ -1,20 +1,20 @@
 experiment:
-  id: wheel_robot1
+  id: wheel_robot3
   logdir: logs
   randomseed: 42
   train_iters: 200000
-  validate_every: 100
+  validate_every: 2500
   save_every: 5000
-  print_every: 100
+  print_every: 2500
 
 dataset:
-  type: blender
+  type: robot
   basedir: cache/wheel_robot
   testskip: 1
   half_res: False
-  no_ndc: True
-  near: 0.01
-  far: 1.0
+  no_ndc: False
+  near: 50
+  far: 1200
 
 models:
   coarse:

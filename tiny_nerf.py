@@ -7,6 +7,7 @@ import torch
 from tqdm import tqdm, trange
 
 from nerf import cumprod_exclusive, get_minibatches, get_ray_bundle, positional_encoding
+from utils import get_device
 
 
 def compute_query_points_from_rays(
@@ -182,9 +183,8 @@ class VeryTinyNerfModel(torch.nn.Module):
 
 
 def main():
-
     # Determine device to run on (GPU vs CPU)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
 
     # Log directory
     logdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "log")
