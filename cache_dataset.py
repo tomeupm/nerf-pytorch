@@ -145,7 +145,7 @@ if __name__ == "__main__":
         "--type",
         type=str.lower,
         required=True,
-        choices=["blender", "llff"],
+        choices=["blender", "llff", "robot"],
         help="Type of the dataset to be cached.",
     )
     parser.add_argument(

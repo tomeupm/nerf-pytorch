@@ -69,14 +69,30 @@ def main():
             images = torch.from_numpy(images) if not isinstance(images, torch.Tensor) else images
             poses = torch.from_numpy(poses) if not isinstance(poses, torch.Tensor) else poses
         elif cfg.dataset.type.lower() == "robot":
-            images, poses, render_poses, hwf, i_split = load_robot_data(
-                cfg.dataset.basedir,
-                half_res=cfg.dataset.half_res
+            images, poses, bds, render_poses, i_test = load_robot_data(
+                cfg.dataset.basedir, factor=cfg.dataset.downsample_factor
             )
             
+            hwf = poses[0, :3, -1]
+            poses = poses[:, :3, :4]
+            if not isinstance(i_test, list):
+                i_test = [i_test]
+            if cfg.dataset.llffhold > 0:
+                i_test = np.arange(images.shape[0])[:: cfg.dataset.llffhold]
+            i_val = i_test
+            i_train = np.array(
+                [
+                    i
+                    for i in np.arange(images.shape[0])
+                    if (i not in i_test and i not in i_val)
+                ]
+            )
             H, W, focal = hwf
             H, W = int(H), int(W)
             hwf = [H, W, focal]
+            # Asegurar que las imágenes y poses sean float32
+            images = torch.from_numpy(images.astype(np.float32))
+            poses = torch.from_numpy(poses.astype(np.float32))
             
         elif cfg.dataset.type.lower() == "llff":
             images, poses, bds, render_poses, i_test = load_llff_data(

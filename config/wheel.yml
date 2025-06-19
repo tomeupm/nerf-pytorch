@@ -1,5 +1,5 @@
 experiment:
-  id: wheel_robot3
+  id: wheel_robot4
   logdir: logs
   randomseed: 42
   train_iters: 200000
@@ -8,35 +8,35 @@ experiment:
   print_every: 2500
 
 dataset:
-  type: blender
-  basedir: cache/wheel_robot
-  testskip: 1
-  half_res: False
+  type: robot
+  basedir: cache/wheel_real_robot
+  downsample_factor: 8
   no_ndc: False
-  near: 50
-  far: 1200
+  near: 0
+  far: 1
+  llffhold: 8
 
 models:
   coarse:
     type: FlexibleNeRFModel
-    num_layers: 8
-    hidden_size: 128
+    num_layers: 4
+    hidden_size: 64
     skip_connect_every: 3
     include_input_xyz: True
     log_sampling_xyz: True
-    num_encoding_fn_xyz: 10
+    num_encoding_fn_xyz: 6
     use_viewdirs: True
     include_input_dir: True
     num_encoding_fn_dir: 4
     log_sampling_dir: True
   fine:
     type: FlexibleNeRFModel
-    num_layers: 8
-    hidden_size: 128
+    num_layers: 4
+    hidden_size: 64
     skip_connect_every: 3
     include_input_xyz: True
     log_sampling_xyz: True
-    num_encoding_fn_xyz: 10
+    num_encoding_fn_xyz: 6
     use_viewdirs: True
     include_input_dir: True
     num_encoding_fn_dir: 4
@@ -55,16 +55,16 @@ nerf:
   encode_position_fn: positional_encoding
   encode_direction_fn: positional_encoding
   train:
-    num_random_rays: 2048
-    chunksize: 65536
+    num_random_rays: 4096
+    chunksize: 16384
     perturb: True
     num_coarse: 64
     num_fine: 128
     white_background: False
-    radiance_field_noise_std: 0.2
+    radiance_field_noise_std: 1.0
     lindisp: False
   validation:
-    chunksize: 65536
+    chunksize: 16384
     perturb: False
     num_coarse: 64
     num_fine: 128

@@ -113,21 +113,70 @@ def generate_render_poses(poses, n_poses=120, radius_scale=1.0):
     return np.array(render_poses)
 
 
-def load_robot_data(basedir, half_res=False, train_split=0.8):
+def normalize(x):
+    return x / np.linalg.norm(x)
+
+def viewmatrix(z, up, pos):
+    vec2 = normalize(z)
+    vec1_avg = up
+    vec0 = normalize(np.cross(vec1_avg, vec2))
+    vec1 = normalize(np.cross(vec2, vec0))
+    m = np.stack([vec0, vec1, vec2, pos], 1)
+    return m
+
+def poses_avg(poses):
+    hwf = poses[0, :3, -1:]
+    center = poses[:, :3, 3].mean(0)
+    vec2 = normalize(poses[:, :3, 2].sum(0))
+    up = poses[:, :3, 1].sum(0)
+    c2w = np.concatenate([viewmatrix(vec2, up, center), hwf], 1)
+    return c2w
+
+def recenter_poses(poses):
+    poses_ = poses + 0
+    bottom = np.reshape([0, 0, 0, 1.0], [1, 4])
+    c2w = poses_avg(poses)
+    c2w = np.concatenate([c2w[:3, :4], bottom], -2)
+    bottom = np.tile(np.reshape(bottom, [1, 1, 4]), [poses.shape[0], 1, 1])
+    poses = np.concatenate([poses[:, :3, :4], bottom], -2)
+    poses = np.linalg.inv(c2w) @ poses
+    poses_[:, :3, :4] = poses[:, :3, :4]
+    poses = poses_
+    return poses
+
+def render_path_spiral(c2w, up, rads, focal, zdelta, zrate, rots, N):
+    render_poses = []
+    rads = np.array(list(rads) + [1.0])
+    hwf = c2w[:, 4:5]
+
+    for theta in np.linspace(0.0, 2.0 * np.pi * rots, N + 1)[:-1]:
+        c = np.dot(
+            c2w[:3, :4],
+            np.array([np.cos(theta), -np.sin(theta), -np.sin(theta * zrate), 1.0])
+            * rads,
+        )
+        z = normalize(c - np.dot(c2w[:3, :4], np.array([0, 0, -focal, 1.0])))
+        render_poses.append(np.concatenate([viewmatrix(z, up, c), hwf], 1))
+    return render_poses
+
+def load_robot_data(basedir, factor=8, recenter=True, bd_factor=0.75, spherify=False, path_zflat=False):
     """
-    Carga imágenes y poses para entrenamiento de NeRF, similar a load_blender_data.
+    Carga imágenes y poses para entrenamiento de NeRF con tratamiento similar a LLFF.
     
     Args:
         basedir: Ruta base que contiene las imágenes y el archivo poses.txt
-        half_res: Si reducir la resolución a la mitad
-        train_split: Proporción de datos para entrenamiento (resto se usa para validación)
+        factor: Factor de reducción de resolución
+        recenter: Si recentrar las poses
+        bd_factor: Factor para el reescalado de bounds
+        spherify: Si esfericizar las poses
+        path_zflat: Si aplanar la trayectoria en Z
         
     Returns:
-        imgs: Array de imágenes normalizadas [N, H, W, 3] (RGB)
-        poses: Array de matrices de pose [N, 4, 4]
-        render_poses: Poses para renderizado (espiral alrededor de la escena)
-        hwf: [Height, Width, Focal] de las imágenes
-        i_split: Índices para [train, val, test]
+        images: Array de imágenes normalizadas [N, H, W, 3] (RGB)
+        poses: Array de matrices de pose [N, 3, 5] (incluye H, W, focal)
+        bds: Bounds de la escena [N, 2] (near, far)
+        render_poses: Poses para renderizado
+        i_test: Índice de la vista de test
     """
     # Verificar que el directorio de imágenes exista
     if not os.path.isdir(basedir):
@@ -204,72 +253,110 @@ def load_robot_data(basedir, half_res=False, train_split=0.8):
     # Obtener dimensiones de imagen
     H, W = imgs[0].shape[:2]
     
-    # Calcular focal length basado en las especificaciones de la cámara
-    # FOV horizontal: 87°, FOV vertical: 58°
-    fov_horizontal = 87.0 * np.pi / 180.0  # Convertir a radianes
-    fov_vertical = 58.0 * np.pi / 180.0    # Convertir a radianes
-    
-    # Calcular focal length usando el FOV horizontal
-    focal_x = W / (2.0 * np.tan(fov_horizontal / 2.0))
-    # Calcular focal length usando el FOV vertical  
-    focal_y = H / (2.0 * np.tan(fov_vertical / 2.0))
-    
-    # Usar el promedio de ambos focales o el horizontal (más común)
-    focal = focal_x  # NeRF típicamente usa focal cuadrado
-    
-    print(f"FOV de la cámara - Horizontal: {87.0}°, Vertical: {58.0}°")
-    print(f"Focal length calculado - fx: {focal_x:.2f}, fy: {focal_y:.2f}, usando: {focal:.2f}")
-    
-    # Aplicar reducción de resolución si se solicita
-    if half_res:
-        print("Aplicando reducción de resolución a la mitad...")
-        new_h, new_w = H//2, W//2
+    # Aplicar factor de reducción
+    if factor > 1:
+        print(f"Aplicando factor de reducción: {factor}")
+        new_h, new_w = H//factor, W//factor
         new_imgs = []
         
         for img in imgs:
-            # Submuestreo simple (tomar cada segundo píxel)
-            resized = img[::2, ::2]
+            # Submuestreo simple
+            resized = img[::factor, ::factor]
             new_imgs.append(resized)
         
         imgs = np.array(new_imgs)
-        H = H // 2
-        W = W // 2
-        focal = focal / 2.0
+        H = H // factor
+        W = W // factor
+        print(f"Nueva resolución: {H}x{W}")
+    
+    # Calcular focal length
+    fov_horizontal = 87.0 * np.pi / 180.0
+    focal = W / (2.0 * np.tan(fov_horizontal / 2.0))
+    if factor > 1:
+        focal = focal / factor
+    
+    print(f"Focal length: {focal:.2f}")
+    
+    # Convertir poses al formato LLFF [N, 3, 5] donde las últimas columnas son [H, W, focal]
+    poses_llff = np.zeros((len(poses), 3, 5), dtype=np.float32)
+    poses_llff[:, :, :4] = poses[:, :3, :].astype(np.float32)  # Solo las primeras 3 filas de la matriz 4x4
+    poses_llff[:, :, 4] = np.array([H, W, focal], dtype=np.float32)  # Añadir H, W, focal
+    
+    # Estimar bounds de la escena
+    print("Estimando bounds de la escena...")
+    positions = poses[:, :3, 3].astype(np.float32)  # Posiciones de las cámaras
+    center = np.mean(positions, axis=0).astype(np.float32)
+    distances = np.linalg.norm(positions - center, axis=1).astype(np.float32)
+    
+    # Calcular near y far basado en las distancias de las cámaras
+    scene_radius = np.max(distances).astype(np.float32)
+    near = (scene_radius * 0.1).astype(np.float32)  # 10% del radio de la escena
+    far = (scene_radius * 3.0).astype(np.float32)   # 300% del radio de la escena
+    
+    # Crear bounds para cada vista
+    bds = np.array([[near, far] for _ in range(len(poses))], dtype=np.float32)
+    
+    print(f"Bounds estimados: near={near:.3f}, far={far:.3f}")
+    
+    # Aplicar reescalado basado en bd_factor
+    if bd_factor is not None:
+        sc = (1.0 / (bds.min() * bd_factor)).astype(np.float32)
+        poses_llff[:, :3, 3] *= sc
+        bds *= sc
+        print(f"Aplicado reescalado con factor: {sc:.3f}")
+    
+    # Recentrar poses si se solicita
+    if recenter:
+        print("Recentrando poses...")
+        # Convertir temporalmente a formato completo para recentrado
+        poses_temp = np.zeros((len(poses_llff), 4, 4))
+        poses_temp[:, :3, :] = poses_llff[:, :, :4]
+        poses_temp[:, 3, 3] = 1.0
         
-        print(f"Nueva resolución: {H}x{W}, nuevo focal: {focal:.2f}")
+        poses_temp = recenter_poses(poses_temp)
+        poses_llff[:, :, :4] = poses_temp[:, :3, :]
     
-    # Crear splits para entrenamiento/validación/test
-    n_imgs = len(imgs)
-    n_train = int(n_imgs * train_split)
-    n_val = max(1, int(n_imgs * 0.1))  # Al menos 1 para validación, 10% del total
-    n_test = n_imgs - n_train - n_val
+    # Generar poses de renderizado
+    c2w = poses_avg(poses_llff)
+    up = normalize(poses_llff[:, :3, 1].sum(0))
     
-    # Si no hay suficientes imágenes para test, usar validación como test
-    if n_test <= 0:
-        n_test = n_val
-        n_val = max(1, n_imgs - n_train - n_test)
+    # Calcular parámetros para la trayectoria espiral
+    close_depth, inf_depth = bds.min() * 0.9, bds.max() * 5.0
+    dt = 0.75
+    mean_dz = 1.0 / (((1.0 - dt) / close_depth + dt / inf_depth))
+    focal_spiral = mean_dz
     
-    # Crear índices para los splits
-    indices = np.arange(n_imgs)
-    np.random.seed(42)  # Para reproducibilidad
-    np.random.shuffle(indices)
+    # Obtener radios para la trayectoria espiral
+    shrink_factor = 0.8
+    zdelta = close_depth * 0.2
+    tt = poses_llff[:, :3, 3]
+    rads = np.percentile(np.abs(tt), 90, 0)
+    c2w_path = c2w
+    N_views = 120
+    N_rots = 2
     
-    i_train = indices[:n_train]
-    i_val = indices[n_train:n_train + n_val]
-    if n_test == n_val:  # Usar validación como test
-        i_test = i_val
-    else:
-        i_test = indices[n_train + n_val:n_train + n_val + n_test]
+    if path_zflat:
+        zloc = -close_depth * 0.1
+        c2w_path[:3, 3] = c2w_path[:3, 3] + zloc * c2w_path[:3, 2]
+        rads[2] = 0.0
+        N_rots = 1
+        N_views = N_views // 2
     
-    i_split = [i_train, i_val, i_test]
+    render_poses = render_path_spiral(
+        c2w_path, up, rads, focal_spiral, zdelta, zrate=0.5, rots=N_rots, N=N_views
+    )
+    render_poses = np.array(render_poses, dtype=np.float32)
     
-    # Generar poses de renderizado para novel view synthesis
-    render_poses = generate_render_poses(poses)
+    # Determinar vista de test (la más cercana al centro promedio)
+    c2w_center = poses_avg(poses_llff)
+    dists = np.sum(np.square(c2w_center[:3, 3] - poses_llff[:, :3, 3]), -1)
+    i_test = np.argmin(dists)
     
-    print(f"Split de datos: {len(i_train)} entrenamiento, {len(i_val)} validación, {len(i_test)} test")
-    print(f"Dimensiones de imagen: H={H}, W={W}, Focal={focal:.2f}")
-    print(f"Generadas {len(render_poses)} poses para renderizado")
+    print(f"Dimensiones finales:")
+    print(f"Imágenes: {imgs.shape}")
+    print(f"Poses: {poses_llff.shape}")
+    print(f"Bounds: {bds.shape}")
+    print(f"Render poses: {len(render_poses)}")
+    print(f"Vista de test: {i_test}")
     
-    hwf = [H, W, focal]
-    
-    return imgs, poses, render_poses, hwf, i_split
+    return imgs, poses_llff, bds, render_poses, i_test
