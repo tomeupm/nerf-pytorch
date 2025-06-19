@@ -1,5 +1,5 @@
 experiment:
-  id: wheel_robot4
+  id: wheel_robot5
   logdir: logs
   randomseed: 42
   train_iters: 200000
@@ -19,8 +19,8 @@ dataset:
 models:
   coarse:
     type: FlexibleNeRFModel
-    num_layers: 4
-    hidden_size: 64
+    num_layers: 8
+    hidden_size: 128
     skip_connect_every: 3
     include_input_xyz: True
     log_sampling_xyz: True
@@ -31,8 +31,8 @@ models:
     log_sampling_dir: True
   fine:
     type: FlexibleNeRFModel
-    num_layers: 4
-    hidden_size: 64
+    num_layers: 8
+    hidden_size: 128
     skip_connect_every: 3
     include_input_xyz: True
     log_sampling_xyz: True
