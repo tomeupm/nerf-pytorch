@@ -1,0 +1,105 @@
+experiment:
+  id: lego_robot3
+  logdir: logs
+  randomseed: 42
+  train_iters: 400000
+  validate_every: 2500
+  save_every: 5000
+  print_every: 2500
+
+dataset:
+  type: robot
+  basedir: cache/lego_robot
+  downsample_factor: 8
+  no_ndc: False
+  near: 2
+  far: 6
+  llffhold: 8
+
+models:
+  coarse:
+    type: FlexibleNeRFModel
+    num_layers: 8
+    hidden_size: 128
+    skip_connect_every: 3
+    include_input_xyz: True
+    log_sampling_xyz: True
+    num_encoding_fn_xyz: 10
+    use_viewdirs: True
+    include_input_dir: True
+    num_encoding_fn_dir: 4
+    log_sampling_dir: True
+  fine:
+    type: FlexibleNeRFModel
+    num_layers: 8
+    hidden_size: 128
+    skip_connect_every: 3
+    include_input_xyz: True
+    log_sampling_xyz: True
+    num_encoding_fn_xyz: 10
+    use_viewdirs: True
+    include_input_dir: True
+    num_encoding_fn_dir: 4
+    log_sampling_dir: True
+
+# Optimizer params.
+optimizer:
+  # Name of the torch.optim class used for optimization.
+  type: Adam
+  # Learning rate.
+  lr: 1.0E-3
+ 
+# Learning rate schedule.
+scheduler:
+  # Exponentially decay learning rate (in 1000 steps)
+  lr_decay: 250
+  # Rate at which to apply this decay.
+  lr_decay_factor: 0.1
+
+# NeRF parameters.
+nerf:
+  # Use viewing directions as input, in addition to the X, Y, Z coordinates.
+  use_viewdirs: True
+  # Encoding function for position (X, Y, Z).
+  encode_position_fn: positional_encoding
+  # Encoding function for ray direction (theta, phi).
+  encode_direction_fn: positional_encoding
+  # Training-specific parameters.
+  train:
+    # Number of random rays to retain from each image.
+    # These sampled rays are used for training, and the others are discarded.
+    num_random_rays: 1024  # 32 * 32 * 4
+    # Size of each chunk (rays are batched into "chunks" and passed through
+    # the network)
+    chunksize: 131072  # 131072  # 1024 * 32
+    # Whether or not to perturb the sampled depth values.
+    perturb: True
+    # Number of depth samples per ray for the coarse network.
+    num_coarse: 64
+    # Number of depth samples per ray for the fine network.
+    num_fine: 64
+    # Whether to render models using a white background.
+    white_background: False
+    # Standard deviation of noise to be added to the radiance field when
+    # performing volume rendering.
+    radiance_field_noise_std: 0.2
+    # Sample linearly in disparity space, as opposed to in depth space.
+    lindisp: False
+  # Validation-specific parameters.
+  validation:
+    # Number of random rays to retain from each image.
+    # These sampled rays are used for training, and the others are discarded.
+    chunksize: 131072   # 1024 * 32
+    # Whether or not to perturb the sampled depth values.
+    perturb: False
+    # Number of depth samples per ray for the coarse network.
+    num_coarse: 64
+    # Number of depth samples per ray for the fine network.
+    num_fine: 64
+    # Whether to render models using a white background.
+    white_background: False
+    # Standard deviation of noise to be added to the radiance field when
+    # performing volume rendering.
+    radiance_field_noise_std: 0.
+    # Sample linearly in disparity space, as opposed to in depth space.
+    lindisp: False

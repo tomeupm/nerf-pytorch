@@ -1,11 +1,11 @@
 experiment:
-  id: wheel_robot5
+  id: wheel_robot6
   logdir: logs
   randomseed: 42
-  train_iters: 200000
-  validate_every: 2500
+  train_iters: 250000
+  validate_every: 100
   save_every: 5000
-  print_every: 2500
+  print_every: 100
 
 dataset:
   type: robot
@@ -44,7 +44,7 @@ models:
 
 optimizer:
   type: Adam
-  lr: 5.0E-3
+  lr: 1.0E-3
 
 scheduler:
   lr_decay: 250
@@ -56,15 +56,15 @@ nerf:
   encode_direction_fn: positional_encoding
   train:
     num_random_rays: 4096
-    chunksize: 16384
+    chunksize: 131072
     perturb: True
     num_coarse: 64
     num_fine: 128
     white_background: False
-    radiance_field_noise_std: 1.0
+    radiance_field_noise_std: 0.0
     lindisp: False
   validation:
-    chunksize: 16384
+    chunksize: 131072
     perturb: False
     num_coarse: 64
     num_fine: 128
